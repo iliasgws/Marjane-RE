@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Marjane History Exporter</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header><img src="icon.svg" width="32" height="32" alt=""><div><h1>Marjane history</h1><p>Local export · Firefox</p></div></header>
+  <main>
+    <p class="instructions">Sign in to Marjane, start capture here, then refresh <strong>Historique de mes commandes</strong>. Load more pages and open each ticket to capture its products.</p>
+    <div class="counts" aria-label="Captured history">
+      <div><strong id="purchases">0</strong><span>purchases</span></div>
+      <div><strong id="items">0</strong><span>product rows</span></div>
+      <div><strong id="detailed">0</strong><span>with details</span></div>
+    </div>
+    <p id="status" role="status" aria-live="polite">Loading…</p>
+    <div class="actions"><button id="start" class="primary">Start new capture</button><button id="pause" disabled>Pause</button></div>
+    <div class="actions"><button id="json" disabled>Export JSON</button><button id="csv" disabled>Export CSV</button></div>
+    <button id="clear" class="quiet">Clear captured data</button>
+    <p class="privacy">This tab only. No new API requests, proxy, certificates, cookies, login-token export, or uploads. Data stays in extension memory until Clear or browser exit.</p>
+    <p class="warning">Exports contain personal purchase data. Only loaded records are included. Starting a new capture clears the previous one.</p>
+    <p id="diagnostics" class="diagnostics"></p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

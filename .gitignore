@@ -5,3 +5,10 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Generated decompilations and private device captures
+/work/
+/captures/
+__pycache__/
+/dist/
+/web-ext-artifacts/

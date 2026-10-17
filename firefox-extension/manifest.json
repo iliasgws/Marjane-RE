@@ -1,0 +1,30 @@
+{
+  "manifest_version": 2,
+  "name": "Marjane History Exporter",
+  "version": "0.1.0",
+  "description": "Export the Marjane purchase history you load in your signed-in browser tab. Local JSON and CSV only.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "marjane-history-exporter@local.invalid",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": { "required": ["none"] }
+    }
+  },
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "webRequest",
+    "webRequestBlocking",
+    "https://www.marjane.ma/*",
+    "https://marjane.ma/*",
+    "https://api-ayaline.marjane.ma/*"
+  ],
+  "background": { "scripts": ["core.js", "capture.js", "background.js"], "persistent": true },
+  "browser_action": {
+    "default_title": "Export Marjane history",
+    "default_popup": "popup.html",
+    "default_icon": "icon.svg"
+  },
+  "icons": { "48": "icon.svg", "96": "icon.svg" },
+  "content_security_policy": "script-src 'self'; object-src 'none'"
+}

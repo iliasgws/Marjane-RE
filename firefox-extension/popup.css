@@ -1,0 +1,23 @@
+:root { font: 14px/1.5 system-ui, sans-serif; color: #15304a; background: #f7f9fc; color-scheme: light; }
+* { box-sizing: border-box; }
+body { width: 370px; margin: 0; }
+header { display: flex; gap: 12px; align-items: center; padding: 20px 20px 12px; }
+h1 { font-size: 19px; margin: 0; letter-spacing: -.3px; }
+header p { margin: 0; font-size: 12px; color: #52667b; }
+main { padding: 0 20px 18px; }
+.instructions { margin: 10px 0 16px; }
+.counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.counts div { background: white; border: 1px solid #dbe3ed; border-radius: 10px; padding: 12px 5px; text-align: center; }
+.counts strong { display: block; font-size: 23px; color: #075ba8; }
+.counts span { display: block; font-size: 11px; color: #52667b; }
+#status { min-height: 48px; padding: 10px 0 0; }
+.actions { display: flex; gap: 8px; margin-top: 8px; }
+button { border: 1px solid #b9c8d9; border-radius: 7px; padding: 10px 12px; background: white; color: #15304a; font: inherit; cursor: pointer; }
+.actions button { flex: 1; }
+button.primary { background: #075ba8; border-color: #075ba8; color: white; }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible { outline: 3px solid #df9e24; outline-offset: 2px; }
+button.quiet { width: 100%; margin-top: 10px; border: none; background: transparent; color: #8f3131; }
+.privacy, .warning, .diagnostics { font-size: 11px; line-height: 1.55; color: #52667b; }
+.warning { padding: 10px; border-radius: 7px; background: #fff3d8; color: #765117; }
+.diagnostics { margin-bottom: 0; }
