@@ -58,7 +58,18 @@ async function startAutomation() {
         if (!tab.active) throw new Error('History tab is no longer active. Automation stopped.');
         await ticketControl(id, 'open', {ticket});
       },
-      close: ticket => ticketControl(id, 'close', {ticket}),
+      async close(ticket) {
+        // The API stream can finish before React mounts the modal/close button.
+        // Wait up to five seconds, click exactly once, then verify DOM closure.
+        const deadline = Date.now() + 5000;
+        while (run.running && epoch === session && tabId === id) {
+          const result = await ticketControl(id, 'close', {ticket});
+          if (result.clicked) return;
+          if (Date.now() >= deadline) throw new Error('Ticket close button did not become ready.');
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      },
+      closed: async ticket => (await ticketControl(id, 'closed', {ticket})).closed,
       progress: progress => Object.assign(run, progress)
     }).then(result => {
       if (epoch === session && run.running) notice = result.reason === 'complete' ?

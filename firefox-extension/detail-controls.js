@@ -35,7 +35,7 @@
       historyPage();
       const url = new URL(location.href);
       if (message.command === 'discover') {
-        if (dialogs().length || url.searchParams.has('order_number')) throw new Error('Close the open ticket or dialog before starting.');
+        if (dialogs().length) throw new Error('Close the open ticket or dialog before starting.');
         const matches = [];
         for (const ticket of (message.tickets || []).slice(0, 2000)) {
           try { detailButton(ticket); matches.push(ticket); } catch (_) { /* Not on this loaded page. */ }
@@ -45,14 +45,21 @@
       const ticket = message.ticket;
       if (!ticket || typeof ticket.id !== 'string' || !ticket.id) throw new Error('Invalid ticket selection.');
       if (message.command === 'open') {
-        if (dialogs().length || url.searchParams.has('order_number')) throw new Error('Another dialog is open. Automation stopped.');
+        // Marjane leaves order_number in the URL even after the modal closes.
+        // DOM visibility, not a stale query parameter, determines openness.
+        if (dialogs().length) throw new Error('Another dialog is open. Automation stopped.');
         detailButton(ticket).click();
       } else if (message.command === 'close') {
+        if (!dialogs().length) return Promise.resolve({ok: true, clicked: false});
         if (url.searchParams.get('order_number') !== ticket.id) throw new Error('The selected ticket changed. Automation stopped.');
-        const buttons = dialogs().flatMap(dialog => [...dialog.querySelectorAll('button[aria-label="Fermer"]')])
+        const buttons = [...new Set(dialogs().flatMap(dialog => [...dialog.querySelectorAll('button[aria-label="Fermer"]')]))]
           .filter(button => visible(button) && !button.disabled);
+        if (!buttons.length) return Promise.resolve({ok: true, clicked: false});
         if (buttons.length !== 1) throw new Error('Could not safely close the ticket. Close it manually.');
         buttons[0].click();
+        return Promise.resolve({ok: true, clicked: true});
+      } else if (message.command === 'closed') {
+        return Promise.resolve({ok: true, closed: dialogs().length === 0});
       } else throw new Error('Unsupported ticket action.');
       return Promise.resolve({ok: true});
     } catch (error) {

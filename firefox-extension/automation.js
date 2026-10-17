@@ -17,6 +17,13 @@
       }
       if (!driver.current()) return {...progress, reason: 'stopped'};
       await driver.close(ticket);
+      if (!driver.current()) return {...progress, reason: 'stopped'};
+      const closeDeadline = driver.now() + 5000;
+      while (driver.current() && !(await driver.closed(ticket))) {
+        if (driver.now() >= closeDeadline) throw new Error('Ticket modal did not close. Automation stopped.');
+        await driver.sleep(100);
+      }
+      if (!driver.current()) return {...progress, reason: 'stopped'};
       progress.completed++;
       driver.progress({...progress});
       // Give React's modal transition time to finish, and pace requests.

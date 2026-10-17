@@ -121,12 +121,12 @@ test('automation captures one detail, reports completion and leaves capture enab
         url: 'https://api-ayaline.marjane.ma/customers/TEST_CUSTOMER/tickets/7/TEST_TICKET'}));
       h.response({ticket: {ticket_key: 'TEST_TICKET'}, array_of_item: [{name_item: 'Synthetic', price: 2, quantity: 1}]});
     }
-    return {ok: true};
+    return {ok: true, clicked: true, closed: true};
   };
   await h.message({action: 'load-details'});
   await new Promise(resolve => setTimeout(resolve, 1000));
   const state = await h.message({action: 'status'});
-  assert.deepEqual(actions, ['discover', 'open', 'close']);
+  assert.deepEqual(actions, ['discover', 'open', 'close', 'closed']);
   assert.equal(state.automation.completed, 1);
   assert.equal(state.automation.running, false);
   assert.equal(state.capturing, true);
@@ -156,4 +156,37 @@ test('stopping during discovery prevents clicks and preserves captured records',
   const state = await h.message({action: 'status'});
   assert.equal(state.automation.running, false);
   assert.equal(state.purchases, 1);
+});
+
+test('waits for close control readiness, clicks once, then checks disappearance', async () => {
+  const h = harness();
+  await h.message({action: 'start'});
+  h.listeners.headers(h.request());
+  h.response([{ticket_key: 'TEST_TICKET', server: 7}]);
+  let readinessChecks = 0;
+  let closeClicks = 0;
+  let disappearanceChecks = 0;
+  h.browser.tabs.executeScript = async () => {};
+  h.browser.tabs.get = async () => ({active: true});
+  h.browser.tabs.sendMessage = async (id, message) => {
+    if (message.command === 'discover') return {ok: true, tickets: message.tickets};
+    if (message.command === 'open') {
+      h.listeners.headers(h.request({requestId: 'detail',
+        url: 'https://api-ayaline.marjane.ma/customers/TEST_CUSTOMER/tickets/7/TEST_TICKET'}));
+      h.response({ticket: {ticket_key: 'TEST_TICKET'}, array_of_item: []});
+    }
+    if (message.command === 'close') {
+      const clicked = ++readinessChecks === 3;
+      if (clicked) closeClicks++;
+      return {ok: true, clicked};
+    }
+    if (message.command === 'closed') return {ok: true, closed: ++disappearanceChecks >= 3};
+    return {ok: true};
+  };
+  await h.message({action: 'load-details'});
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  assert.equal((await h.message({action: 'status'})).automation.completed, 1);
+  assert.equal(readinessChecks, 3);
+  assert.equal(closeClicks, 1);
+  assert.equal(disappearanceChecks, 3);
 });

@@ -13,6 +13,7 @@ function driver() {
     async loaded(ticket) { return loaded.has(ticket.id); },
     async open(ticket) { actions.push('open:' + ticket.id); loaded.add(ticket.id); },
     async close(ticket) { actions.push('close:' + ticket.id); },
+    async closed() { return true; },
     progress() {}, stop() { running = false; }
   };
   return {api, actions, loaded};
@@ -54,4 +55,21 @@ test('cancellation during an asynchronous loaded check prevents the click', asyn
   d.api.loaded = async () => { d.api.stop(); return false; };
   assert.equal((await collect([{id: 'A'}], d.api)).reason, 'stopped');
   assert.deepEqual(d.actions, []);
+});
+
+test('does not open the next ticket until modal closure is verified', async () => {
+  const d = driver();
+  let checks = 0;
+  d.api.closed = async () => ++checks >= 3;
+  const result = await collect([{id: 'A'}, {id: 'B'}], d.api);
+  assert.equal(result.completed, 2);
+  assert.ok(checks >= 4);
+  assert.deepEqual(d.actions, ['open:A', 'close:A', 'open:B', 'close:B']);
+});
+
+test('a close click that leaves the modal open stops instead of advancing', async () => {
+  const d = driver();
+  d.api.closed = async () => false;
+  await assert.rejects(collect([{id: 'A'}, {id: 'B'}], d.api), /did not close/);
+  assert.deepEqual(d.actions, ['open:A', 'close:A']);
 });

@@ -84,3 +84,18 @@ that ticket, then continue sequentially. The exact-ID/unique-control guards,
 timeouts, cancellation and background integration have synthetic tests. A complete
 automated run against a signed-in Firefox session remains an owner validation
 step; no such end-to-end result is claimed by the tests.
+
+### Close-step fix (v0.2.1)
+
+A follow-up inspection confirmed that clicking **Fermer** removes the modal but
+leaves the previous `order_number` query parameter in the URL. v0.2.0 incorrectly
+treated that stale parameter as an open modal and could stop before the next
+ticket. It also attempted to find the close control immediately after the API
+response, before React necessarily rendered it.
+
+v0.2.1 waits up to five seconds for a matching close control, deduplicates controls
+shared by nested dialog wrappers, clicks once and checks DOM disappearance before
+advancing. The stale query parameter no longer blocks discovery or opening a new
+ticket. A live website check successfully closed one modal, confirmed the retained
+parameter, opened the next card and closed its modal. This verifies the website
+behavior, not a full installed-Firefox extension run.

@@ -54,7 +54,7 @@ test('hidden/offsite pages, ambiguous cards and open dialogs are refused', async
   h.state.url = 'https://www.marjane.ma/account/orders';
   h.state.buttons.push(h.state.buttons[0]);
   assert.equal((await h.send({command: 'open', ticket: {id: 'TEST_A'}})).ok, false);
-  h.state.url += '?order_number=TEST_B';
+  h.state.modals = [{getClientRects: () => [{}]}];
   assert.equal((await h.send({command: 'open', ticket: {id: 'TEST_B'}})).ok, false);
   assert.deepEqual(h.state.clicks, []);
 });
@@ -75,4 +75,28 @@ test('foreign senders cannot control the page', async () => {
   const h = harness();
   assert.equal(h.listener({type: 'marjane-ticket-control', command: 'open', ticket: {id: 'TEST_A'}}, {id: 'other'}), undefined);
   assert.deepEqual(h.state.clicks, []);
+});
+
+test('stale order_number without a modal does not block discovery or the next open', async () => {
+  const h = harness();
+  h.state.url += '?order_number=OLD_TICKET';
+  const result = await h.send({command: 'discover', tickets: [{id: 'TEST_A'}]});
+  assert.equal(result.tickets.length, 1);
+  assert.equal((await h.send({command: 'closed', ticket: {id: 'OLD_TICKET'}})).closed, true);
+  assert.equal((await h.send({command: 'open', ticket: {id: 'TEST_A'}})).ok, true);
+  assert.deepEqual(h.state.clicks, ['TEST_A']);
+});
+
+test('waits for modal rendering and deduplicates close controls in nested dialog wrappers', async () => {
+  const h = harness();
+  h.state.url += '?order_number=TEST_A';
+  assert.equal((await h.send({command: 'close', ticket: {id: 'TEST_A'}})).clicked, false);
+  const close = {getClientRects: () => [{}], disabled: false, click() { h.state.clicks.push('close'); }};
+  const wrapper = {getClientRects: () => [{}], querySelectorAll() { return [close]; }};
+  h.state.modals = [wrapper, wrapper];
+  assert.equal((await h.send({command: 'closed', ticket: {id: 'TEST_A'}})).closed, false);
+  assert.equal((await h.send({command: 'close', ticket: {id: 'TEST_A'}})).clicked, true);
+  assert.deepEqual(h.state.clicks, ['close']);
+  h.state.modals = [];
+  assert.equal((await h.send({command: 'closed', ticket: {id: 'TEST_A'}})).closed, true);
 });

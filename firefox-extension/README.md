@@ -45,6 +45,9 @@ Online orders with embedded `content` can provide products without another page.
    going, and reopening it shows progress.
 4. The extension opens one **Détails du ticket**, waits until that ticket's detail
    response is captured, closes its **Fermer** button, then moves to the next.
+   It waits up to five seconds for the close control to render, clicks it once,
+   and verifies the modal disappears before proceeding. A stale `order_number`
+   query parameter after closure is ignored; the website normally retains it.
 5. Use **Stop loading details** anytime. This keeps capture on and leaves any
    currently open modal for you to close. **Pause**, **Clear**, tab switching,
    leaving history, or closing the tab also stops automatic loading.
@@ -138,5 +141,5 @@ python3 scripts/package_extension.py
 ```
 
 Run those commands from the repository root. The package command creates
-`dist/marjane-history-exporter-0.2.0.zip` using an explicit file allowlist, excluding
+`dist/marjane-history-exporter-0.2.1.zip` using an explicit file allowlist, excluding
 tests, private captures, local certificates and decompiled APK output.
