@@ -100,3 +100,24 @@ test('waits for modal rendering and deduplicates close controls in nested dialog
   h.state.modals = [];
   assert.equal((await h.send({command: 'closed', ticket: {id: 'TEST_A'}})).closed, true);
 });
+
+test('recognizes a site-auto-opened receipt only when captured ID and card both match', async () => {
+  const h = harness();
+  h.state.url += '?order_number=TEST_A';
+  h.state.modals = [{getClientRects: () => [{}]}];
+  const result = await h.send({command: 'existing', tickets: [{id: 'TEST_A', storeId: '7'}]});
+  assert.equal(result.ok, true);
+  assert.equal(result.ticket.id, 'TEST_A');
+  assert.equal((await h.send({command: 'existing', tickets: [{id: 'TEST_B'}]})).ok, false);
+  h.state.buttons = [];
+  assert.equal((await h.send({command: 'existing', tickets: [{id: 'TEST_A'}]})).ok, false);
+  assert.deepEqual(h.state.clicks, []);
+});
+
+test('stale URL without a visible modal needs no bootstrap close', async () => {
+  const h = harness();
+  h.state.url += '?order_number=TEST_A';
+  const result = await h.send({command: 'existing', tickets: [{id: 'TEST_A'}]});
+  assert.equal(result.ok, true);
+  assert.equal(result.ticket, null);
+});

@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Marjane History Exporter",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Export the Marjane purchase history you load in your signed-in browser tab. Local JSON and CSV only.",
   "browser_specific_settings": {
     "gecko": {

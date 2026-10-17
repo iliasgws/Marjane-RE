@@ -126,7 +126,7 @@ test('automation captures one detail, reports completion and leaves capture enab
   await h.message({action: 'load-details'});
   await new Promise(resolve => setTimeout(resolve, 1000));
   const state = await h.message({action: 'status'});
-  assert.deepEqual(actions, ['discover', 'open', 'close', 'closed']);
+  assert.deepEqual(actions, ['existing', 'discover', 'open', 'close', 'closed']);
   assert.equal(state.automation.completed, 1);
   assert.equal(state.automation.running, false);
   assert.equal(state.capturing, true);
@@ -152,7 +152,7 @@ test('stopping during discovery prevents clicks and preserves captured records',
   await h.message({action: 'stop-details'});
   release();
   await start;
-  assert.deepEqual(actions, ['discover']);
+  assert.deepEqual(actions, ['existing']);
   const state = await h.message({action: 'status'});
   assert.equal(state.automation.running, false);
   assert.equal(state.purchases, 1);
@@ -189,4 +189,25 @@ test('waits for close control readiness, clicks once, then checks disappearance'
   assert.equal(readinessChecks, 3);
   assert.equal(closeClicks, 1);
   assert.equal(disappearanceChecks, 3);
+});
+
+test('closes a recognized receipt already opened by the site even if its details were captured', async () => {
+  const h = harness();
+  await h.message({action: 'start'});
+  h.listeners.headers(h.request({requestId: 'detail',
+    url: 'https://api-ayaline.marjane.ma/customers/TEST_CUSTOMER/tickets/7/TEST_TICKET'}));
+  h.response({ticket: {ticket_key: 'TEST_TICKET'}, array_of_item: []});
+  const actions = [];
+  h.browser.tabs.executeScript = async () => {};
+  h.browser.tabs.sendMessage = async (id, message) => {
+    actions.push(message.command);
+    if (message.command === 'existing') return {ok: true, ticket: message.tickets[0]};
+    return {ok: true, clicked: true, closed: true};
+  };
+  await h.message({action: 'load-details'});
+  assert.deepEqual(actions, ['existing', 'close', 'closed']);
+  const state = await h.message({action: 'status'});
+  assert.equal(state.automation.running, false);
+  assert.equal(state.capturing, true);
+  assert.match(state.notice, /already have details/);
 });

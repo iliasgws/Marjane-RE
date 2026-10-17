@@ -39,11 +39,13 @@ Online orders with embedded `content` can provide products without another page.
 ### Automatically open ticket details
 
 1. Start capture, select **En magasin**, and refresh the history list so its
-   tickets are captured. Close any open ticket/modal.
+   tickets are captured. If Marjane automatically opens a recognized ticket, the
+   loader can close it first. Unrelated dialogs still need to be closed manually.
 2. Click **Load ticket details automatically** in the extension.
 3. Keep this Marjane history tab selected. The popup can be closed; the run keeps
    going, and reopening it shows progress.
-4. The extension opens one **Détails du ticket**, waits until that ticket's detail
+4. If a captured ticket is already open, the extension safely closes it first.
+   Then it opens one **Détails du ticket**, waits until that ticket's detail
    response is captured, closes its **Fermer** button, then moves to the next.
    It waits up to five seconds for the close control to render, clicks it once,
    and verifies the modal disappears before proceeding. A stale `order_number`
@@ -141,5 +143,5 @@ python3 scripts/package_extension.py
 ```
 
 Run those commands from the repository root. The package command creates
-`dist/marjane-history-exporter-0.2.1.zip` using an explicit file allowlist, excluding
+`dist/marjane-history-exporter-0.2.2.zip` using an explicit file allowlist, excluding
 tests, private captures, local certificates and decompiled APK output.

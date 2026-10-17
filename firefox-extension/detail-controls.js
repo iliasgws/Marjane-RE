@@ -34,6 +34,15 @@
     try {
       historyPage();
       const url = new URL(location.href);
+      if (message.command === 'existing') {
+        if (!dialogs().length) return Promise.resolve({ok: true, ticket: null});
+        const id = url.searchParams.get('order_number');
+        const matches = (message.tickets || []).filter(ticket => ticket.id === id);
+        if (matches.length !== 1) throw new Error('An unrelated or unrecognized dialog is open. Close it manually.');
+        // Both the captured list and its on-page card must identify the ticket.
+        detailButton(matches[0]);
+        return Promise.resolve({ok: true, ticket: matches[0]});
+      }
       if (message.command === 'discover') {
         if (dialogs().length) throw new Error('Close the open ticket or dialog before starting.');
         const matches = [];

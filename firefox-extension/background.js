@@ -26,6 +26,25 @@ async function ticketControl(id, command, extra = {}) {
   return result;
 }
 
+async function clickTicketClose(id, ticket, current) {
+  const deadline = Date.now() + 5000;
+  while (current()) {
+    const result = await ticketControl(id, 'close', {ticket});
+    if (result.clicked) return;
+    if (Date.now() >= deadline) throw new Error('Ticket close button did not become ready.');
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+}
+
+async function waitTicketClosed(id, ticket, current) {
+  const deadline = Date.now() + 5000;
+  while (current()) {
+    if ((await ticketControl(id, 'closed', {ticket})).closed) return;
+    if (Date.now() >= deadline) throw new Error('Ticket modal did not close.');
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+}
+
 async function startAutomation() {
   if (tabId === null) throw new Error('Start capture and refresh En magasin first.');
   if (automation?.running) throw new Error('Ticket loading is already running.');
@@ -34,13 +53,31 @@ async function startAutomation() {
   const id = tabId;
   const session = epoch;
   const run = {running: true, total: 0, completed: 0, attempted: 0};
+  const current = () => run.running && epoch === session && tabId === id;
   automation = run;
   try {
-    const tickets = [...records.values()].filter(record => record.type === 'in-store' && !record.detailsLoaded)
+    const allTickets = [...records.values()].filter(record => record.type === 'in-store')
       .map(record => ({id: record.id, storeId: record.storeId}));
-    if (!tickets.length) throw new Error('No pending tickets captured. Refresh En magasin first, or export the details already loaded.');
+    if (!allTickets.length) throw new Error('No pending tickets captured. Refresh En magasin first, or export the details already loaded.');
     await browser.tabs.executeScript(id, {file: '/detail-controls.js', frameId: 0});
     if (!run.running || epoch !== session) return;
+    const existing = await ticketControl(id, 'existing', {tickets: allTickets});
+    if (!current()) return;
+    if (existing.ticket) {
+      notice = 'Closing the ticket Marjane already opened before processing the list.';
+      await clickTicketClose(id, existing.ticket, current);
+      if (!current()) return;
+      await waitTicketClosed(id, existing.ticket, current);
+      if (!current()) return;
+      await new Promise(resolve => setTimeout(resolve, 900));
+      if (!current()) return;
+    }
+    const tickets = allTickets.filter(ticket => !records.get(MarjaneExport.key({type: 'in-store', ...ticket}))?.detailsLoaded);
+    if (!tickets.length) {
+      run.running = false;
+      notice = 'All captured tickets already have details. Export JSON or CSV.';
+      return;
+    }
     const result = await ticketControl(id, 'discover', {tickets});
     if (!run.running || epoch !== session) return;
     if (!result.tickets.length) throw new Error('No matching ticket cards found. Select En magasin and refresh while capture is on.');
@@ -48,7 +85,7 @@ async function startAutomation() {
     notice = 'Loading ticket details one at a time. Keep this history tab visible.';
     // Do not hold the popup request open for the duration of automation.
     void MarjaneAutomation.collect(result.tickets, {
-      current: () => run.running && epoch === session && tabId === id,
+      current,
       now: () => Date.now(),
       sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
       loaded: ticket => !!records.get(MarjaneExport.key({type: 'in-store', ...ticket}))?.detailsLoaded,
@@ -58,17 +95,7 @@ async function startAutomation() {
         if (!tab.active) throw new Error('History tab is no longer active. Automation stopped.');
         await ticketControl(id, 'open', {ticket});
       },
-      async close(ticket) {
-        // The API stream can finish before React mounts the modal/close button.
-        // Wait up to five seconds, click exactly once, then verify DOM closure.
-        const deadline = Date.now() + 5000;
-        while (run.running && epoch === session && tabId === id) {
-          const result = await ticketControl(id, 'close', {ticket});
-          if (result.clicked) return;
-          if (Date.now() >= deadline) throw new Error('Ticket close button did not become ready.');
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      },
+      close: ticket => clickTicketClose(id, ticket, current),
       closed: async ticket => (await ticketControl(id, 'closed', {ticket})).closed,
       progress: progress => Object.assign(run, progress)
     }).then(result => {
