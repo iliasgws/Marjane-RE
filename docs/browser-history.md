@@ -69,3 +69,18 @@ exporter-specific unit/integration-mock tests pass.
 
 This is not a claim that a complete export was downloaded from a real signed-in
 Firefox session: that end-to-end check remains for the owner after installation.
+
+## Automatic ticket details (v0.2.0)
+
+The website's “Détails du ticket” controls are buttons inside `article` receipt
+cards. The full ticket number appears in a text node in that card. Clicking one
+opens a `.modal`, sets `order_number` in the history URL, and exposes a close
+button with `aria-label="Fermer"`. These structural properties were inspected
+in the signed-in website without saving ticket values as fixtures.
+
+The exporter uses those properties to open only already-captured in-store tickets
+on the current page, wait for the corresponding normalized detail response, close
+that ticket, then continue sequentially. The exact-ID/unique-control guards,
+timeouts, cancellation and background integration have synthetic tests. A complete
+automated run against a signed-in Firefox session remains an owner validation
+step; no such end-to-end result is claimed by the tests.

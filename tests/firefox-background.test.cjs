@@ -13,7 +13,7 @@ function harness() {
     runtime: {id: 'test-extension', onMessage: event('message')},
     browserAction: {async setBadgeText() {}, async setBadgeBackgroundColor() {}},
     tabs: {async query() { return [{id: 4, url: 'https://www.marjane.ma/account/orders'}]; },
-      onRemoved: event('removed'), onUpdated: event('updated')},
+      onRemoved: event('removed'), onUpdated: event('updated'), onActivated: event('activated')},
     downloads: {onChanged: event('downloadChanged'), async download(options) { downloads.push(options); return downloads.length; }},
     webRequest: {onHeadersReceived: event('headers'), filterResponseData() {
       const filter = {writes: [], write(data) { this.writes.push(data); },
@@ -21,8 +21,8 @@ function harness() {
       filters.push(filter); return filter;
     }}
   };
-  const context = vm.createContext({browser, URL, Blob, TextEncoder, TextDecoder});
-  for (const filename of ['core.js', 'capture.js', 'background.js']) {
+  const context = vm.createContext({browser, URL, Blob, TextEncoder, TextDecoder, setTimeout});
+  for (const filename of ['core.js', 'capture.js', 'automation.js', 'background.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../firefox-extension', filename), 'utf8'), context);
   }
   const message = body => listeners.message(body, {id: browser.runtime.id});
@@ -34,7 +34,7 @@ function harness() {
     filter.ondata({data: bytes.buffer}); filter.onstop();
     return filter;
   }
-  return {listeners, filters, downloads, message, request, response};
+  return {browser, listeners, filters, downloads, message, request, response};
 }
 
 test('capture is off by default and limited to selected tab, GET, nonprivate success responses', async () => {
@@ -92,4 +92,68 @@ test('tab close/offsite navigation pauses, and website messages cannot control c
   await h.message({action: 'start'});
   h.listeners.removed(4);
   assert.equal((await h.message({action: 'status'})).capturing, false);
+});
+
+test('automatic loading requires capture, captured receipts and the selected history tab', async () => {
+  const h = harness();
+  await assert.rejects(h.message({action: 'load-details'}), /Start capture/);
+  await h.message({action: 'start'});
+  await assert.rejects(h.message({action: 'load-details'}), /No pending tickets/);
+  h.listeners.headers(h.request());
+  h.response([{ticket_key: 'TEST_TICKET', server: 7}]);
+  h.browser.tabs.query = async () => [{id: 5, url: 'https://www.marjane.ma/account/orders'}];
+  await assert.rejects(h.message({action: 'load-details'}), /Select the Marjane tab/);
+});
+
+test('automation captures one detail, reports completion and leaves capture enabled', async () => {
+  const h = harness();
+  await h.message({action: 'start'});
+  h.listeners.headers(h.request());
+  h.response([{ticket_key: 'TEST_TICKET', server: 7}]);
+  const actions = [];
+  h.browser.tabs.executeScript = async () => {};
+  h.browser.tabs.get = async () => ({id: 4, active: true});
+  h.browser.tabs.sendMessage = async (id, message) => {
+    actions.push(message.command);
+    if (message.command === 'discover') return {ok: true, tickets: message.tickets};
+    if (message.command === 'open') {
+      h.listeners.headers(h.request({requestId: 'detail',
+        url: 'https://api-ayaline.marjane.ma/customers/TEST_CUSTOMER/tickets/7/TEST_TICKET'}));
+      h.response({ticket: {ticket_key: 'TEST_TICKET'}, array_of_item: [{name_item: 'Synthetic', price: 2, quantity: 1}]});
+    }
+    return {ok: true};
+  };
+  await h.message({action: 'load-details'});
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  const state = await h.message({action: 'status'});
+  assert.deepEqual(actions, ['discover', 'open', 'close']);
+  assert.equal(state.automation.completed, 1);
+  assert.equal(state.automation.running, false);
+  assert.equal(state.capturing, true);
+  assert.equal(state.items, 1);
+});
+
+test('stopping during discovery prevents clicks and preserves captured records', async () => {
+  const h = harness();
+  await h.message({action: 'start'});
+  h.listeners.headers(h.request());
+  h.response([{ticket_key: 'TEST_TICKET', server: 7}]);
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const actions = [];
+  h.browser.tabs.executeScript = async () => {};
+  h.browser.tabs.sendMessage = async (id, message) => {
+    actions.push(message.command);
+    await pending;
+    return {ok: true, tickets: message.tickets};
+  };
+  const start = h.message({action: 'load-details'});
+  await new Promise(resolve => setImmediate(resolve));
+  await h.message({action: 'stop-details'});
+  release();
+  await start;
+  assert.deepEqual(actions, ['discover']);
+  const state = await h.message({action: 'status'});
+  assert.equal(state.automation.running, false);
+  assert.equal(state.purchases, 1);
 });

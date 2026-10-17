@@ -6,7 +6,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'firefox-extension'
-FILES = ('manifest.json', 'core.js', 'capture.js', 'background.js', 'popup.html',
+FILES = ('manifest.json', 'core.js', 'capture.js', 'automation.js', 'detail-controls.js', 'background.js', 'popup.html',
          'popup.js', 'popup.css', 'icon.svg', 'README.md')
 
 

@@ -1,5 +1,5 @@
 'use strict';
-/* global browser, MarjaneExport, MarjaneCapture */
+/* global browser, MarjaneExport, MarjaneCapture, MarjaneAutomation */
 const MAX_RESPONSE = 2 * 1024 * 1024;
 const MAX_SESSION = 10 * 1024 * 1024;
 const MAX_RECORDS = 2000;
@@ -14,8 +14,66 @@ let errors = 0;
 let notice = 'Nothing captured yet.';
 const streams = new Map();
 const downloadUrls = new Map();
+let automation = null;
+
+function stopAutomation() {
+  if (automation) automation.running = false;
+}
+
+async function ticketControl(id, command, extra = {}) {
+  const result = await browser.tabs.sendMessage(id, {type: 'marjane-ticket-control', command, ...extra}, {frameId: 0});
+  if (!result?.ok) throw new Error(result?.error || 'Could not control the history page.');
+  return result;
+}
+
+async function startAutomation() {
+  if (tabId === null) throw new Error('Start capture and refresh En magasin first.');
+  if (automation?.running) throw new Error('Ticket loading is already running.');
+  const [active] = await browser.tabs.query({active: true, currentWindow: true});
+  if (active?.id !== tabId) throw new Error('Select the Marjane tab being captured first.');
+  const id = tabId;
+  const session = epoch;
+  const run = {running: true, total: 0, completed: 0, attempted: 0};
+  automation = run;
+  try {
+    const tickets = [...records.values()].filter(record => record.type === 'in-store' && !record.detailsLoaded)
+      .map(record => ({id: record.id, storeId: record.storeId}));
+    if (!tickets.length) throw new Error('No pending tickets captured. Refresh En magasin first, or export the details already loaded.');
+    await browser.tabs.executeScript(id, {file: '/detail-controls.js', frameId: 0});
+    if (!run.running || epoch !== session) return;
+    const result = await ticketControl(id, 'discover', {tickets});
+    if (!run.running || epoch !== session) return;
+    if (!result.tickets.length) throw new Error('No matching ticket cards found. Select En magasin and refresh while capture is on.');
+    run.total = result.tickets.length;
+    notice = 'Loading ticket details one at a time. Keep this history tab visible.';
+    // Do not hold the popup request open for the duration of automation.
+    void MarjaneAutomation.collect(result.tickets, {
+      current: () => run.running && epoch === session && tabId === id,
+      now: () => Date.now(),
+      sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
+      loaded: ticket => !!records.get(MarjaneExport.key({type: 'in-store', ...ticket}))?.detailsLoaded,
+      async open(ticket) {
+        const tab = await browser.tabs.get(id);
+        if (!run.running || epoch !== session) return;
+        if (!tab.active) throw new Error('History tab is no longer active. Automation stopped.');
+        await ticketControl(id, 'open', {ticket});
+      },
+      close: ticket => ticketControl(id, 'close', {ticket}),
+      progress: progress => Object.assign(run, progress)
+    }).then(result => {
+      if (epoch === session && run.running) notice = result.reason === 'complete' ?
+        'Ticket details loaded. Export JSON or CSV; load another history page to collect more.' : 'Ticket loading stopped.';
+    }).catch(() => {
+      if (epoch === session && run.running) notice = 'Ticket loading stopped: a response timed out or the page changed. Close any open ticket, check the page, and retry. Capture and export still work.';
+    }).finally(() => { run.running = false; });
+  } catch (error) {
+    run.running = false;
+    throw error;
+  }
+}
 
 function pause(message) {
+  stopAutomation();
   epoch++;
   tabId = null;
   for (const stop of streams.values()) stop();
@@ -31,6 +89,7 @@ function reset() {
 function status() {
   const values = [...records.values()];
   return {capturing: tabId !== null, responses, skipped, errors, notice,
+    automation: automation ? {...automation} : null,
     purchases: values.length, detailed: values.filter(record => record.detailsLoaded).length,
     items: values.reduce((sum, record) => sum + record.items.length, 0)};
 }
@@ -52,7 +111,7 @@ function accept(payload, source, session) {
     records.set(id, merged);
     byteCount += after - before;
   }
-  notice = 'Captured loaded history. Open receipt details to include products.';
+  if (!automation?.running) notice = 'Captured loaded history. Open receipt details or use automatic ticket loading.';
 }
 
 browser.webRequest.onHeadersReceived.addListener(details => {
@@ -83,10 +142,17 @@ browser.tabs.onUpdated.addListener((id, change) => {
   if (id !== tabId || !change.url) return;
   try {
     const url = new URL(change.url);
+    if (url.pathname.replace(/\/$/, '') !== '/account/orders') stopAutomation();
     if (url.protocol !== 'https:' || !['www.marjane.ma', 'marjane.ma'].includes(url.hostname)) {
       pause('Capture paused after leaving Marjane.');
     }
   } catch (_) { pause('Capture paused.'); }
+});
+browser.tabs.onActivated.addListener(info => {
+  if (automation?.running && info.tabId !== tabId) {
+    stopAutomation();
+    notice = 'Ticket loading stopped after switching tabs. Capture remains on.';
+  }
 });
 
 browser.downloads.onChanged.addListener(delta => {
@@ -117,6 +183,11 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
     }
     case 'pause': pause('Capture paused. You can still export.'); return status();
     case 'clear': reset(); return status();
+    case 'load-details': await startAutomation(); return status();
+    case 'stop-details':
+      stopAutomation();
+      notice = 'Automatic ticket loading stopped. Any open ticket is left for you to close. You can export captured details.';
+      return status();
     case 'export': {
       if (!['json', 'csv'].includes(message.format)) throw new Error('Unsupported export format.');
       const purchases = [...records.values()];

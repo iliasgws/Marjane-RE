@@ -8,6 +8,10 @@ function render(state) {
   byId('pause').disabled = !state.capturing || busy;
   byId('start').disabled = busy || state.capturing;
   byId('clear').disabled = busy;
+  byId('load-details').disabled = busy || !state.capturing || !!state.automation?.running;
+  byId('stop-details').disabled = busy || !state.automation?.running;
+  byId('progress').textContent = state.automation ?
+    `${state.automation.running ? 'Loading' : 'Last run'}: ${state.automation.completed} / ${state.automation.total} tickets complete` : '';
   for (const id of ['json', 'csv']) byId(id).disabled = busy || state.purchases === 0;
   byId('diagnostics').textContent = `${state.responses} responses · ${state.skipped} empty/unsupported/oversize · ${state.errors} observation errors`;
 }
@@ -25,7 +29,7 @@ async function action(message) {
     byId('status').textContent = message;
   }
 }
-for (const id of ['start', 'pause', 'clear']) byId(id).addEventListener('click', () => action({action: id}));
+for (const id of ['start', 'pause', 'clear', 'load-details', 'stop-details']) byId(id).addEventListener('click', () => action({action: id}));
 for (const format of ['json', 'csv']) byId(format).addEventListener('click', () => action({action: 'export', format}));
 browser.runtime.sendMessage({action: 'status'}).then(render).catch(() => {
   byId('status').textContent = 'Could not contact the extension. Reload it in about:debugging.';

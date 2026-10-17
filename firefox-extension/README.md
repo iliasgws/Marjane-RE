@@ -23,17 +23,45 @@ when needed. Do not copy session cookies or tokens into the extension.
 2. Select that tab. Open the extension and click **Start new capture**.
 3. Go to **Mon compte → Historique de mes commandes** (`/account/orders`).
    Refresh the page if you were already there.
-4. Browse **En magasin** / **En ligne**, load additional pages, and open each
-   **Détails du ticket** / order detail whose products you want to export.
+4. Browse **En magasin** / **En ligne** and load additional pages. For in-store
+   products, use **Load ticket details automatically** (below), or open each
+   **Détails du ticket** manually. Online-order details remain manual.
 5. Open the extension to see purchase, product-row and detail counts.
 6. Click **Export JSON** or **Export CSV**, then choose a local file.
 7. Click **Pause** when finished and **Clear captured data** when no longer needed.
 
 **Only responses loaded after capture starts are included.** There is no automatic
-pagination, background scraping, hidden API request, or guarantee that the file
+pagination, direct background API fetching, or guarantee that the file
 contains your entire history. Opening receipt details is necessary for product
 rows; list-only purchases export a summary row with empty product columns.
 Online orders with embedded `content` can provide products without another page.
+
+### Automatically open ticket details
+
+1. Start capture, select **En magasin**, and refresh the history list so its
+   tickets are captured. Close any open ticket/modal.
+2. Click **Load ticket details automatically** in the extension.
+3. Keep this Marjane history tab selected. The popup can be closed; the run keeps
+   going, and reopening it shows progress.
+4. The extension opens one **Détails du ticket**, waits until that ticket's detail
+   response is captured, closes its **Fermer** button, then moves to the next.
+5. Use **Stop loading details** anytime. This keeps capture on and leaves any
+   currently open modal for you to close. **Pause**, **Clear**, tab switching,
+   leaving history, or closing the tab also stops automatic loading.
+
+Only already-listed, captured in-store tickets are selected; already-loaded details
+are skipped. Each run is capped at **100 tickets** with at least a 900 ms pause
+between tickets. It does not load additional history pages or switch accounts.
+After loading another page, run it again. A 15-second response timeout, ambiguous
+card, missing close button, hidden tab or unexpected dialog stops the run rather
+than clicking blindly. If a cached response cannot be captured, load that ticket
+manually or refresh and retry. No automatic retries or payment clicks occur.
+
+Automation uses an injected, extension-isolated page-control script only after
+your explicit button click; it matches the full ticket identifier against a
+history card, clicks only its exact **Détails du ticket** button, and closes only
+the modal whose `order_number` matches that ticket. It never reads credentials or
+page-wide account text. Existing capture and export still work independently.
 
 ## Exported fields
 
@@ -45,7 +73,7 @@ Online orders with embedded `content` can provide products without another page.
 
 Fields are selected explicitly. Card numbers, customer IDs from URLs, phone
 numbers, delivery/billing addresses, payment-card/payment-method data, cookies,
-authentication headers and login tokens are not exported. Unknown fields are
+  authentication headers and login tokens are not exported. Unknown fields are
 omitted. JSON is the most faithful normalized export; raw API JSON is not saved.
 
 CSV uses UTF-8 with a BOM, comma separators, quoted cells, and CRLF line endings.
@@ -104,11 +132,11 @@ interpret zero captured records as proof of no purchases.
 No build dependencies are needed for the extension itself.
 
 ```sh
-node --test tests/firefox-extension.test.cjs tests/firefox-background.test.cjs
+node --test tests/firefox-*.test.cjs
 npm exec --yes --package=web-ext -- web-ext lint --source-dir firefox-extension
 python3 scripts/package_extension.py
 ```
 
 Run those commands from the repository root. The package command creates
-`dist/marjane-history-exporter-0.1.0.zip` using an explicit file allowlist, excluding
+`dist/marjane-history-exporter-0.2.0.zip` using an explicit file allowlist, excluding
 tests, private captures, local certificates and decompiled APK output.

@@ -7,6 +7,8 @@ Reverse-engineering notes for the Marjane Android app.
 [Install and use the Firefox extension](firefox-extension/README.md) to export
 loaded purchase history as JSON or CSV. Uses your existing website login;
 no phone, proxy, credentials export or automatic API fetching.
+Use **Load ticket details automatically** to open already-listed in-store tickets
+one at a time and collect their product rows, with progress and a Stop button.
 
 ```sh
 python3 scripts/package_extension.py
